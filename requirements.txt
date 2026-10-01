@@ -1,0 +1,18 @@
+# Feature extraction (segmentation masks -> Table 6 geometric biomarkers)
+numpy>=1.26
+opencv-python-headless>=4.9
+
+# Dataset index/metadata (Parquet), not pixel data
+pandas>=2.0
+pyarrow>=14.0
+pillow>=10.0
+
+# Model training
+torch>=2.2
+torchvision>=0.17
+
+# Tabular baseline comparisons (Table 8: Logistic Regression, RF, XGBoost, CatBoost...)
+scikit-learn>=1.4
+
+# Tests
+pytest>=8.0
