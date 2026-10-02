@@ -19,11 +19,9 @@ format. 12,449 labeled fundus images; the paper's classification set excludes
 images used to train its own segmentation models, leaving a leakage-safe 8,818
 samples (80/10/10 split).
 
-Raw dataset files are never committed here — see `data/README.md` to fetch it
-yourself (same read-only-source convention as the `biotransport-ai` repo's
-`datasets/`).
+Raw dataset files are never committed here — see `data/README.md` to fetch it.
 
-## Architecture (confirmed from the full paper)
+## Architecture
 
 Three stages:
 
@@ -44,11 +42,6 @@ Three stages:
 precision, 0.930 recall. Numeric biomarkers alone (1D-CNN, no images) already
 reach ~91% paired with either Swin backbone (~75% fully alone) — the tabular
 signal is doing most of the work.
-
-**Reality check:** this is a known, reproducible recipe now, not an open
-research question — that's real progress — but reproducing it (4 segmentation
-models plus a dual-transformer classifier) is still a multi-week effort, not
-something to rush. Building incrementally, cheapest validation first.
 
 ## Development plan
 
