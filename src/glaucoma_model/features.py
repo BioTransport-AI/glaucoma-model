@@ -1,9 +1,20 @@
-"""Deterministic geometric biomarker extraction from glaucoma segmentation masks.
+"""Deterministic geometric biomarker extraction (Parikh, Nguyen & Penkova 2026, Table 6).
 
-Reproduces the feature set in Parikh, Nguyen & Penkova (2026), Table 6: diameters,
-areas, and circumferences extracted via Canny edge detection, contour detection,
-and minimum-enclosing-circle fitting -- not learned embeddings, so the features
-can't leak information from the segmentation stage into the classification stage.
+Two input types, matching the paper's actual pipeline -- not one function
+applied uniformly to five masks:
+
+- The retinal boundary comes from Canny edge detection directly on the raw
+  fundus photograph (paper section 3.6). There is no dedicated retina
+  segmentation model in the architecture -- optic disc, optic cup, and
+  vasculature come from U-Net, the macula from a custom SegFormer, and that's
+  the full list of trained segmentation models.
+- Optic disc, optic cup, vasculature, and macula masks are already clean
+  binary segmentation-model outputs, so their boundaries come from contour
+  detection directly, with no edge-detection pass.
+
+Diameters/areas are deterministic geometry, not learned embeddings, so they
+can't leak information from the segmentation stage into the classification
+stage.
 """
 
 from __future__ import annotations
@@ -14,45 +25,34 @@ from dataclasses import dataclass, fields
 import cv2
 import numpy as np
 
-FEATURE_NAMES: tuple[str, ...] = (
-    "retina_diameter",
-    "optic_disc_diameter",
-    "optic_cup_diameter",
-    "vasculature_density",
-    "macular_area",
-    "retina_radius",
-    "retina_area",
-    "retina_circumference",
-    "optic_cup_radius",
-    "optic_cup_area",
-    "optic_cup_circumference",
-    "optic_disc_radius",
-    "optic_disc_area",
-    "optic_disc_circumference",
-    "macular_radius",
-    "macular_diameter",
-    "macular_circumference",
-    "optic_disc_to_retina_diameter_ratio",
-    "optic_disc_to_retina_area_ratio",
-    "optic_cup_to_disc_diameter_ratio",
-    "optic_cup_to_disc_area_ratio",
-    "optic_cup_to_retina_diameter_ratio",
-    "optic_cup_to_retina_area_ratio",
-)
 
+def retina_diameter_px(fundus_image: np.ndarray) -> float:
+    """Diameter (pixels) of the retinal field in a raw fundus photograph.
 
-def circle_diameter_px(mask: np.ndarray) -> float:
-    """Diameter (pixels) of the minimum enclosing circle around a mask's largest contour.
-
-    `mask` is a single-channel array where nonzero means foreground. Returns 0.0
-    for an empty mask rather than raising, since a missing structure is valid
-    input (e.g. a macula mask that didn't segment anything).
+    `fundus_image` is the original photo (grayscale or BGR, as loaded by
+    `cv2.imread`) -- NOT a segmentation mask. Canny edge detection -> contour
+    detection -> minimum enclosing circle, per the paper's own pipeline.
     """
-    binary = (mask > 0).astype(np.uint8) * 255
-    edges = cv2.Canny(binary, 50, 150)
+    gray = fundus_image if fundus_image.ndim == 2 else cv2.cvtColor(fundus_image, cv2.COLOR_BGR2GRAY)
+    edges = cv2.Canny(gray, 50, 150)
     contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
-        contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        return 0.0
+    largest = max(contours, key=cv2.contourArea)
+    _, radius = cv2.minEnclosingCircle(largest)
+    return 2.0 * float(radius)
+
+
+def mask_diameter_px(mask: np.ndarray) -> float:
+    """Diameter (pixels) of the minimum enclosing circle around a binary mask's
+    largest contour -- for segmentation-model outputs (disc/cup/macula), which
+    are already clean binary regions and need no edge-detection pass first.
+
+    Returns 0.0 for an empty mask (a structure that didn't segment) rather
+    than raising.
+    """
+    binary = (mask > 0).astype(np.uint8)
+    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
         return 0.0
     largest = max(contours, key=cv2.contourArea)
@@ -64,9 +64,9 @@ def vasculature_density(mask: np.ndarray) -> float:
     """Fraction of foreground pixels in a vasculature mask.
 
     The paper lists this as an "Extracted" feature without giving its exact
-    formula in the part of the text we have -- this is the standard definition
-    used in retinal-imaging literature, not independently verified against the
-    paper's own code.
+    formula in the part of the text we have -- this is the standard
+    definition used in retinal-imaging literature, not independently
+    verified against the paper's own code.
     """
     if mask.size == 0:
         return 0.0
@@ -118,19 +118,39 @@ class GlaucomaFeatures:
         return {f.name: getattr(self, f.name) for f in fields(self)}
 
 
+# Derived from the dataclass itself, not hand-duplicated -- a field added or
+# renamed on GlaucomaFeatures can't silently drift out of sync with this.
+FEATURE_NAMES: tuple[str, ...] = tuple(f.name for f in fields(GlaucomaFeatures))
+
+
+def features_to_vector(features: GlaucomaFeatures) -> list[float]:
+    """Order a GlaucomaFeatures instance into the fixed column order models expect.
+
+    Returns a plain list, not a torch.Tensor -- this module has no hard
+    dependency on torch; wrap with `torch.tensor(...)` at the call site.
+    """
+    values = features.to_dict()
+    return [values[name] for name in FEATURE_NAMES]
+
+
 def extract_features(
-    retina_mask: np.ndarray,
+    fundus_image: np.ndarray,
     optic_disc_mask: np.ndarray,
     optic_cup_mask: np.ndarray,
     vasculature_mask: np.ndarray,
     macula_mask: np.ndarray,
 ) -> GlaucomaFeatures:
-    """Build the full Table 6 feature set from five binary segmentation masks."""
+    """Build the full Table 6 feature set.
 
-    retina_d = circle_diameter_px(retina_mask)
-    disc_d = circle_diameter_px(optic_disc_mask)
-    cup_d = circle_diameter_px(optic_cup_mask)
-    macula_d = circle_diameter_px(macula_mask)
+    `fundus_image` is the raw (or grayscale) photograph, used for the
+    retinal boundary. The other four are binary segmentation masks from
+    their respective trained models (U-Net x3, SegFormer for the macula).
+    """
+
+    retina_d = retina_diameter_px(fundus_image)
+    disc_d = mask_diameter_px(optic_disc_mask)
+    cup_d = mask_diameter_px(optic_cup_mask)
+    macula_d = mask_diameter_px(macula_mask)
 
     retina_area = _circle_area(retina_d)
     disc_area = _circle_area(disc_d)

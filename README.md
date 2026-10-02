@@ -27,8 +27,11 @@ Three stages:
 
 1. **Segmentation → engineered biomarkers.** U-Net for optic disc and optic
    cup, U-Net for retinal vasculature, a custom SegFormer (FPN + Squeeze-
-   Excitation) for the macula. Diameters/areas are extracted via Canny edge
-   detection → contour detection → minimum enclosing circle — deliberately
+   Excitation) for the macula — there is no separate retina segmentation
+   model. The retinal boundary instead comes from Canny edge detection
+   directly on the raw fundus photograph; optic disc/cup/macula boundaries
+   come from contour detection directly on their (already binary)
+   segmentation masks, no edge detection needed. All of it is deliberately
    deterministic geometry, not learned embeddings, to avoid leakage between
    the segmentation and classification stages. 23 total features (5
    extracted, 18 engineered ratios/radii/areas) — see
