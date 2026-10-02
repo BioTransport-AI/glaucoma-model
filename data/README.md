@@ -9,10 +9,12 @@ cd ../ai-research/datasets
 ./scripts/fetch_kaggle.sh dataset deathtrooper/multichannel-glaucoma-benchmark-dataset smdg-19-glaucoma
 ```
 
-Then symlink or copy the result here:
+The script resolves its destination relative to the `ai-research` repo root
+(two directories up from `datasets/scripts/`), not inside `datasets/` itself
+— it lands in `ai-research/data/smdg-19-glaucoma/`. Symlink that here:
 
 ```bash
-ln -s ../../ai-research/datasets/data/smdg-19-glaucoma /home/noahrundell/Documents/cs/glaucoma-model/data/smdg-19-glaucoma
+ln -s ../../ai-research/data/smdg-19-glaucoma /home/noahrundell/Documents/cs/glaucoma-model/data/smdg-19-glaucoma
 ```
 
 Requires the Kaggle CLI and an API token at `~/.kaggle/kaggle.json` — see the
