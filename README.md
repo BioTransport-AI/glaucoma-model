@@ -15,22 +15,23 @@ where that plan actually gets implemented.
 [SMDG-19](https://www.kaggle.com/datasets/deathtrooper/multichannel-glaucoma-benchmark-dataset)
 (Standardized Multi-Channel Dataset for Glaucoma) standardizes 19 public
 glaucoma datasets (REFUGE, ORIGA, AIROGS, DRISHTI-GS1, and others) into one
-format. 12,449 labeled fundus images; the paper's classification set excludes
-images used to train its own segmentation models, leaving a leakage-safe
-split the paper reports as 8,818 samples. **Fetched and indexed for real as
-of 2026-10-03: this live copy of the dataset gives 8,883** (a ~0.7% drift,
-consistent with the same small version drift visible in the label counts
-below — Kaggle's copy has moved since the paper was published, not a bug in
-our indexing).
+format. 12,449 labeled fundus images total.
 
-**Label values are 0 (non-glaucoma, 7,549), 1 (glaucoma, 4,767), and -1
-(glaucoma-suspect, 133)** — not a clean binary 0/1. The paper's own pipeline
-is a 2-class problem with no mention of a suspect class, so **the -1 rows
-need to be explicitly excluded before training** (`TabularCNN`'s output head
-is 2-way; feeding a raw -1 into `CrossEntropyLoss` as-is will error or
-corrupt a batch, not fail loudly in an obvious way). This affects the
-segmentation-training pool too: 68 of the 3,566 `used_for_segmentation=True`
-rows are suspect-labeled.
+**Labels are 0 (non-glaucoma), 1 (glaucoma), and -1 (glaucoma-suspect, 133
+rows)** — not clean binary. The paper's pipeline is strictly 2-class, with
+no mention anywhere of a suspect category. Use
+`glaucoma_model.load_classification_split()`
+(`src/glaucoma_model/data.py`), not `biotransport_datasets.load_split()`
+directly — it drops the -1 rows for you. This was confirmed empirically, not
+assumed: the paper states a starting count of 12,316 samples before
+leakage-exclusion, which is exactly 12,449 minus the 133 suspects. Applying
+leakage-exclusion to that reduced set lands at **exactly 8,818** — the
+paper's reported figure precisely, not approximately. (An earlier version of
+this README attributed the gap to generic dataset-version drift at ~8,883
+rows; that was the *unfiltered* count and the explanation was wrong — this
+is the real cause, pinned by `tests/test_data.py`.) The 133 suspects aren't
+only a classification-stage concern either: 68 of them sit inside the
+3,566-row pool Phase 4 segmentation training will draw from.
 
 Raw dataset files are never committed here — see `data/README.md` to fetch
 it, and `scripts/validate_features_on_real_masks.py` to sanity-check
@@ -66,12 +67,11 @@ signal is doing most of the work.
 
 1. ~~Transcribe the full feature spec and training config from the paper~~ —
    done; see `src/glaucoma_model/features.py` and the Funding & Data Tracker.
-2. ~~Pull SMDG-19 and reproduce the leakage-safe split~~ — done (8,883
-   samples; see the Dataset section above). `extract_features()` is also
-   validated against SMDG-19's real ground-truth masks now, not just
-   synthetic circles — cup-to-disc ratio by label matches the paper's
-   Table 7 within 2%. **Before any training: filter out the 133 (68 in the
-   segmentation pool) suspect-labeled rows** -- see the Dataset section.
+2. ~~Pull SMDG-19 and reproduce the leakage-safe split~~ — done, and exactly
+   matches the paper's 8,818 via `load_classification_split()` (see the
+   Dataset section above). `extract_features()` is also validated against
+   SMDG-19's real ground-truth masks now, not just synthetic circles — cup-
+   to-disc ratio by label matches the paper's Table 7 within 2%.
 3. **Reproduce the tabular-only 1D-CNN baseline first**
    (`src/glaucoma_model/models/tabular_cnn.py`) — the cheapest way to
    validate the full pipeline end to end before spending compute on two
@@ -105,12 +105,15 @@ from (recommended for anything you want numerically comparable later), use
 
 See `data/README.md` for fetching SMDG-19. Run tests with `pytest`.
 
-## Known architectural debt
+## The cross-repo dependency
 
-Fetching and indexing SMDG-19 currently depends on the sibling
-`ai-research` repo (`datasets/scripts/fetch_kaggle.sh` and the
-`biotransport_datasets` package) being cloned alongside this one — nothing
-in this repo enforces or declares that dependency. Fine for a two-person
-team working from the same machine layout; worth revisiting (vendor the
-needed pieces in, or package `biotransport_datasets` properly) before
-anyone else tries to run this from a fresh clone.
+Fetching and indexing SMDG-19 still depends on the sibling `ai-research`
+repo being cloned alongside this one (`datasets/scripts/fetch_kaggle.sh` for
+the fetch, `biotransport_datasets` for indexing/loading) — that part hasn't
+changed, and still won't work from a fresh clone without `ai-research` as a
+sibling directory. What changed: it's no longer an undeclared path hack.
+`biotransport_datasets` is now a real, versioned, pip-installable package
+(`ai-research/datasets/pyproject.toml`) — `requirements.txt` installs it in
+editable mode from `../ai-research/datasets`, resolves correctly from any
+working directory (verified by importing it from outside both repos
+entirely), and shows up properly in `pip show biotransport-datasets`.
