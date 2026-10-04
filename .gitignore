@@ -7,6 +7,10 @@
 *.pt
 *.pth
 
+# Virtual environment — never commit this, it's hundreds of MB of
+# torch/CUDA binaries that don't belong in git history.
+.venv/
+
 # Common local cruft
 .DS_Store
 __pycache__/

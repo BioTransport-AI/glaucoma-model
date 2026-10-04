@@ -11,7 +11,10 @@ import numpy as np
 import pytest
 
 from glaucoma_model.features import (
+    FEATURE_NAMES,
+    GlaucomaFeatures,
     extract_features,
+    features_to_vector,
     mask_diameter_px,
     retina_diameter_px,
     vasculature_density,
@@ -75,3 +78,18 @@ def test_extract_features_cup_smaller_than_disc_gives_ratio_below_one() -> None:
     assert 0 < features.optic_cup_to_disc_diameter_ratio < 1
     assert 0 < features.optic_disc_to_retina_diameter_ratio < 1
     assert len(features.to_dict()) == 23
+
+
+def test_features_to_vector_matches_feature_names_order() -> None:
+    """A wrong order here wouldn't crash anything -- it'd just silently train
+    a model on garbled features. That makes this the one test worth being
+    paranoid about."""
+    values = {name: float(i) for i, name in enumerate(FEATURE_NAMES)}
+    features = GlaucomaFeatures(**values)
+
+    vector = features_to_vector(features)
+
+    assert vector == [values[name] for name in FEATURE_NAMES]
+    assert len(vector) == len(FEATURE_NAMES) == 23
+    for name, value in zip(FEATURE_NAMES, vector):
+        assert getattr(features, name) == value

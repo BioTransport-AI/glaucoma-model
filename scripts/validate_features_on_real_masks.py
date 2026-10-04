@@ -29,7 +29,7 @@ from glaucoma_model.features import (
     vasculature_density,
 )
 
-RAW = Path("/home/noahrundell/Documents/cs/ai-research/data/smdg-19-glaucoma")
+RAW = Path(__file__).resolve().parents[1] / "data" / "smdg-19-glaucoma"
 INDEX_PATH = RAW / "index.parquet"
 FUNDUS_DIR = RAW / "full-fundus/full-fundus"
 DISC_DIR = RAW / "optic-disc/optic-disc"
