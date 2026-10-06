@@ -3,9 +3,10 @@
 /data/*
 !/data/README.md
 
-# Trained model weights
+# Trained model weights and training run logs
 *.pt
 *.pth
+/logs/
 
 # Virtual environment — never commit this, it's hundreds of MB of
 # torch/CUDA binaries that don't belong in git history.

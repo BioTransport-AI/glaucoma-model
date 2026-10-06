@@ -19,6 +19,8 @@ number.
 
 from __future__ import annotations
 
+from typing import Optional
+
 import pandas as pd
 from biotransport_datasets import load_split
 
@@ -26,6 +28,17 @@ SUSPECT_LABEL = -1
 VALID_LABELS = (0, 1)
 
 DATASET_NAME = "smdg-19-glaucoma"
+
+# structure name -> the mask-path column biotransport_datasets.recipes.smdg19 builds
+# for it. No "macula" entry: SMDG-19's public download has no macula ground truth
+# at all (see that recipe's MASK_SUBDIRS comment) -- the paper's macula masks are a
+# private annotation effort its authors did themselves, not reproducible from this
+# dataset alone. Tracked in README.md under Known gaps.
+SEGMENTATION_STRUCTURES = {
+    "optic_cup": "optic_cup_mask_path",
+    "optic_disc": "optic_disc_mask_path",
+    "vasculature": "vasculature_mask_path",
+}
 
 
 def load_classification_split(exclude_segmentation_leakage: bool = True) -> pd.DataFrame:
@@ -36,3 +49,25 @@ def load_classification_split(exclude_segmentation_leakage: bool = True) -> pd.D
     """
     df = load_split(DATASET_NAME, exclude_segmentation_leakage=exclude_segmentation_leakage)
     return df[df["label"].isin(VALID_LABELS)].reset_index(drop=True)
+
+
+def load_segmentation_split(structure: str, split: Optional[str] = None) -> pd.DataFrame:
+    """Rows with a real ground-truth mask for one structure, optionally filtered
+    to one split ("train" / "val" / "test").
+
+    Doesn't apply exclude_segmentation_leakage -- that filter exists to keep
+    segmentation-used images OUT of the classification split; it has nothing to
+    say about the segmentation split itself, which is exactly those images.
+    `split` is the one global, stratified-by-label assignment smdg19.py makes
+    across the whole dataset (see that recipe's SPLIT_RATIOS comment) -- every
+    structure filters down from the same assignment rather than each getting
+    its own independent split, so a row can't end up train for one structure
+    and test for another.
+    """
+    if structure not in SEGMENTATION_STRUCTURES:
+        raise ValueError(
+            f"Unknown structure {structure!r}. Available: {sorted(SEGMENTATION_STRUCTURES)}"
+        )
+    mask_col = SEGMENTATION_STRUCTURES[structure]
+    df = load_split(DATASET_NAME, split=split)
+    return df[df[mask_col].notna()].reset_index(drop=True)

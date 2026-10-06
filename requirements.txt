@@ -10,12 +10,16 @@ pillow>=10.0
 # The fetch/index/load layer, properly packaged now instead of an undeclared
 # cross-repo path hack -- still requires ai-research cloned as a sibling
 # directory (this installs it in editable mode from there, it doesn't vendor
-# the code in). See the "Known architectural debt" note below.
+# the code in). See "The cross-repo dependency" section in README.md.
 -e ../ai-research/datasets
 
 # Model training
 torch>=2.2
 torchvision>=0.17
+
+# Paired image+mask augmentation for segmentation training -- see
+# segmentation_dataset.py for why this isn't plain torchvision.transforms
+albumentations>=1.4
 
 # Tabular baseline comparisons (Table 8: Logistic Regression, RF, XGBoost, CatBoost...)
 scikit-learn>=1.4
