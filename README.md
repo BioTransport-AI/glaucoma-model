@@ -3,8 +3,8 @@
 Reproducing and extending the multimodal glaucoma classification pipeline from
 [Parikh, Nguyen & Penkova (2026), *Multimodal glaucoma classification using
 segmentation based biomarker extraction*, Knowledge-Based Systems
-349](https://doi.org/10.1016/j.knosys.2026.116449) — Dr. Penkova is corresponding
-author. Full paper PDF lives in the `biotransport-ai` repo's `papers/` directory.
+349](https://doi.org/10.1016/j.knosys.2026.116449). Dr. Penkova is corresponding
+author. Full paper PDF lives in the `research-knowledge-base` repo's `papers/` directory.
 
 Background, full architecture detail, and the live development plan are tracked
 in the team's Funding & Data Tracker doc (Glaucoma Model tab) — this repo is
